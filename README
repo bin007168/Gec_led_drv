@@ -1,0 +1,283 @@
+   3、遵循内核的驱动设计框架设计程序
+
+
+       linux系统的驱动，遵循注册机制
+
+
+	A） 字符设备驱动
+
+            int register_chrdev(unsigned int major,   //主设备号  
+                                const char *name,     //设备驱动名
+				const struct file_operations *fops  //文件操作接口结合
+                                )
+
+		返回值：
+
+			如果major赋值大于0，则返回值 0 为成功申请，失败为负数
+			如果major赋值等于0，则返回值 大于0为成功申请（该值为设备号），失败为负数
+			
+
+
+	   void unregister_chrdev(unsigned int major,  //主设备号
+                                  const char *name)    //设备驱动名
+
+
+            数据交互方法：
+
+
+			内核从应用程序拿数据
+			 copy_from_user(kbuf,     //装载目标地址，内核空间地址
+                                        buf,      //数据来源地址，用户空间地址
+                                        count);   //装载的大小
+
+
+			返回值:
+				还需拷贝的数据长度 ---> 成功拷贝完毕，返回0
+
+
+			 应用程序向内核拿数据
+			 copy_to_user  (buf,      //装载目标地址，用户空间地址
+                                        kbuf,     //数据来源地址，内核空间地址
+                                        count);   //装载的大小
+
+
+			返回值:
+				还需拷贝的数据长度 ---> 成功拷贝完毕，返回0
+
+
+
+
+			不足：copy_from_user与 copy_to_user  没有考虑数据长度的安全性，建议采取措施，限定操作的安全长度  
+
+
+
+
+
+	设备IO资源操作
+
+         #include <linux/ioport.h>
+         #include <linux/io.h>
+
+		1、IO资源申请
+
+
+	//资源申请
+	struct resource *   request_mem_region(start,   //内存资源的起始地址（物理地址）
+                                                n,      //地址单元长度（申请访问空间的大小）
+                                               name)    //该空间的命名（自定义）
+
+	返回值：
+		struct resource * XXX   ---->  资源结构 
+
+		空：  失败
+		非空：资源结构的信息地址
+
+
+	//资源释放
+	release_mem_region(start,  // 内存资源的起始地址（物理地址）
+                           n)      //地址单元长度（申请访问空间的大小）
+	
+
+			
+	struct resource * led_res;
+	//申请
+	led_res = request_mem_region(0xC001C000, 0x1000, "gec6818_led_res");
+	//释放
+	release_mem_region(0xC001C000, 0x1000);
+
+
+		2、IO内存映射
+
+
+         //映射申请
+	void __iomem *  ioremap(cookie, //内存资源的起始地址（物理地址）
+                                size)	 //地址单元长度（申请访问空间的大小）
+
+	 返回值：
+
+		成功： IO设备对应的虚拟地址
+		失败:  NULL
+
+
+	//映射撤销
+	iounmap(void __iomem *io_addr)  //ioremap申请成功的返回值
+
+
+	
+	void __iomem *GPIOCOUT_VA;  //0x00
+	void __iomem *GPIOCOUTENB_VA; //0x04
+	void __iomem *GPIOCALTFN0_VA;//0x20
+	void __iomem *GPIOCALTFN1_VA;//0x24
+
+
+
+	GPIOCOUT_VA = ioremap(0xC001C000, 0x1000);
+	GPIOCOUTENB_VA = GPIOCOUT_VA + 0x04;
+	GPIOCALTFN0_VA = GPIOCOUT_VA + 0x20;
+	GPIOCALTFN1_VA = GPIOCOUT_VA + 0x24;
+
+
+        将引脚初始化成function1--GPIOC
+	*(unsigned int *)GPIOCALTFN1_VA &= ~(3<<2); 
+	*(unsigned int *)GPIOCALTFN1_VA |= (1<<2);    //GPIOC17-->func1->GPIO
+
+	将CPIOC设置为OUTPUT
+	*(unsigned int *)GPIOCOUTENB_VA |= (1<<17);
+
+        设置GPIOC output 1，LED -->off
+	*(unsigned int *)GPIOCOUT_VA |= (1<<17);
+
+
+
+
+        释放
+	iounmap(GPIOCOUT_VA);
+	
+
+
+
+
+	查看设备号：
+
+		ls /dev/fb0
+		crw-rw----    1 root     root       29,       0     Jan  1  1970 fb0
+                                                 主设备号 次设备号
+                                                  驱动号  服务对象 
+	查看设备驱动名：
+
+		cat /proc/devices
+
+
+Character devices:
+
+主设备号   设备驱动名
+  1 mem
+  5 /dev/tty
+  5 /dev/console
+  5 /dev/ptmx
+  5 ttyprintk
+ 10 misc
+ 13 input
+ 14 sound
+ 21 sg
+ 29 fb
+ 81 video4linux
+ 86 ch
+ 89 i2c
+108 ppp
+116 alsa
+128 ptm
+136 pts
+153 spi
+166 ttyACM
+180 usb
+188 ttyUSB
+189 usb_device
+204 ttySAC
+216 rfcomm
+244 stepmotor
+245 roccat
+246 BaseRemoteCtl
+247 ttyGS
+248 usbmon
+249 bsg
+250 iio
+251 ptp
+252 pps
+253 media
+254 rtc
+
+Block devices:
+259 blkext
+  7 loop
+  8 sd
+ 11 sr
+ 65 sd
+ 66 sd
+ 67 sd
+ 68 sd
+ 69 sd
+ 70 sd
+ 71 sd
+128 sd
+129 sd
+130 sd
+131 sd
+132 sd
+133 sd
+134 sd
+135 sd
+179 mmc
+254 device-mapper
+
+
+
+	设备文件：
+
+		通过创建设备文件节点，实现对驱动的调用
+	
+
+
+	[root@GEC6818 /dev]#ls -l
+	
+	crw-rw----    1 root     root       10,  37 Jan  1 00:40 Led
+
+
+	创建设备文件节点
+
+
+	mknod  名字  设备类型  主设备号 次设备号
+
+	mknod  my_char  c   241   0
+
+
+
+	驱动测试：
+
+
+		方法1：
+
+	
+		cat  /dev/xxx
+
+
+
+		方法2：
+
+	       设计一个应用程序，通过文件IO访问进行设备操作
+
+-----------------------------------------------------------
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+
+int main(int argc,char *argv[])
+{
+	int fd;
+	fd = open("/dev/my_char",O_RDWR);
+	if(fd == -1)
+		{
+			perror("open");
+		}
+
+
+	close(fd);
+	return 0;
+}
+
+-----------------------------------------------------
+
+
+	设计驱动程序，实现通过用户的write接口传递控制数据，实现LED控制
+
+
+
+ 
+
+	B） 块设备驱动
+
+
+
+        C） 网络设备
