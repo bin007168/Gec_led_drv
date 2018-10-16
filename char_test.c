@@ -19,7 +19,7 @@ int main(int argc,char *argv[])
 	char wbuf[50];
 	char rbuf[50];
 	
-	fd = open("/dev/test_char",O_RDWR);
+	fd = open("/dev/char_test",O_RDWR);
 	if(fd < 0){
 		printf("open failed\n");
 		return -1;

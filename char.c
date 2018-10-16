@@ -4,6 +4,7 @@
 #include <asm/uaccess.h>
 #include <linux/ioport.h>
 #include <linux/io.h>
+#include <linux/cdev.h>
 
 #define SIZE 1024
 
@@ -17,7 +18,10 @@ void __iomem *GPIOEOUT_VA;  //0x00
 void __iomem *GPIOEOUTENB_VA; //0x04
 void __iomem *GPIOEALTFN0_VA;//0x20
 
-int major = 0;
+struct cdev  *my_cdev;
+dev_t  my_devno;
+int major = 241;
+int minor = 0;
 char KBuf[SIZE];
 
 int my_open(struct inode *inode, struct file *filp)
@@ -124,6 +128,7 @@ struct file_operations bin_fops={
 
 int char_test_init(void)
 {
+	int ret;
 	printk("char_test_init_bin 10/15 16:43\n");
 	
 	//【1】申请GPIO内存资源
@@ -173,6 +178,7 @@ int char_test_init(void)
 	*(unsigned int *)GPIOEOUT_VA |= (1<<13);
 	*(unsigned int *)GPIOCOUT_VA &= ~(1<<14);	  //beep
 	
+#if 0
 	//注册字符设备驱动
 	major = register_chrdev(0,             //主设备号 0~255
 	 					   "bin_char",     //设备驱动名称
@@ -183,6 +189,34 @@ int char_test_init(void)
 		printk("register_chrdev failed\n");
 	else
 		printk("register_chrdev of major is %d\n",major);
+#endif
+
+	//注册字符设备驱动
+	// 1  分配 struct cdev 空间
+    my_cdev = cdev_alloc();
+    if(my_cdev == NULL){     //  if(!my_cdev)
+		printk("cdev_alloc Failed!\n");
+		return -EFAULT;
+	}
+   
+	//  2   初始化  struct cdev  必要信息
+	cdev_init(my_cdev,&bin_fops );
+	// 设置与获取正确的设备编号
+	my_devno = MKDEV(major,minor);
+	ret = register_chrdev_region(my_devno,               //主设备号及次设备号的  起始编号
+		                                1,               // 支持次设备的个数
+		                         "my_char");             //设备驱动名
+	if(ret){
+		printk("register_chrdev_region Failed!\n");
+	}
+
+    // 3  往系统添加cdev 设备驱动
+    ret = cdev_add(my_cdev,             //添加 的目标设备
+				  my_devno,             //注册的设备号(主设备号+次设备号)
+					     1);            //注册的次设备个数
+	if(ret){
+		printk("cdev_add Failed!\n");
+	}	
 						 
 	return 0;
 }
@@ -194,9 +228,12 @@ void char_test_exit(void)
 	iounmap(GPIOCOUT_VA);
 	release_mem_region(0xC001C000, 0x3000);
 	
-	unregister_chrdev(major,    //主设备号
-					  "bin_char"  //设备驱动名称
-					  );
+/*
+	unregister_chrdev(major,       //主设备号
+					  "bin_char"   //设备驱动名称
+					  );                       */
+	unregister_chrdev_region(my_devno, 1);  //释放设备号资源
+	cdev_del(my_cdev);  //cdev字符设备注销				  
 }
 
 
