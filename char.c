@@ -34,6 +34,18 @@ int my_release(struct inode *inode, struct file *filp)
 	return 0;  //success return 
 }
 
+int led_get(char *GetValue)
+{
+	GetValue[0]  =   ! ((*(unsigned int *)GPIOEOUT_VA  >> 13) & 0x1) + 48;
+	GetValue[1]  =    !(!!(*(unsigned int *)GPIOCOUT_VA   &  0x1 << 17))  + 48;
+	GetValue[2]  =   ! ((*(unsigned int *)GPIOCOUT_VA  >> 8) & 0x1) + 48;
+	GetValue[3]  = ! ( !!(*(unsigned int *)GPIOCOUT_VA   &  0x1 << 7))  + 48;
+
+	printk(KERN_ALERT "GetValue : %s\n",GetValue);
+
+	return 0;
+}
+
 int led_set(char *SetValue)
 {
 
@@ -57,10 +69,10 @@ ssize_t my_read(struct file *filp, char __user *buf, size_t count, loff_t *offse
 	int ret;
 	printk("my_read\n");
 	printk("read user space count is %d\n",count);
-	char ToUserBuf[40]= "hello I am kernel data";
+	led_get(KBuf);
 	
 	if(count <= SIZE){
-		ret = copy_to_user(buf,ToUserBuf,count);
+		ret = copy_to_user(buf,KBuf,count);
 		ret = count;
 	}else{
 		printk("count > SIZE can not copy to user\n");

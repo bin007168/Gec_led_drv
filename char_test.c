@@ -16,7 +16,8 @@ int fd;  //文件描述符
 int main(int argc,char *argv[])
 {
 	int ret,sn;
-	char buf[50];
+	char wbuf[50];
+	char rbuf[50];
 	
 	fd = open("/dev/test_char",O_RDWR);
 	if(fd < 0){
@@ -31,13 +32,13 @@ int main(int argc,char *argv[])
 		return -1;
 	}
 	
-	ret = read(fd,buf,20);
-	printf("read count of ret from kernel is %d \n",ret);
-	printf("the data from kernel is %s \n",buf);
-
-    strcpy(buf,argv[1]);
-	ret = write(fd,buf,strlen(buf));
+    strcpy(wbuf,argv[1]);
+	ret = write(fd,wbuf,strlen(wbuf));
 	printf("write count of ret to kernel is %d\n",ret);
+	
+	ret = read(fd,rbuf,20);
+	printf("read count of ret from kernel is %d \n",ret);
+	printf("the data from kernel is [%s]  read the count is %d\n",rbuf,ret);
 
 	close(fd);
 
