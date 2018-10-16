@@ -1,3 +1,8 @@
 .built*
 .char*
 .tmp_ver*
+char.o
+char.ko
+char.mod.o
+char_test
+modules.order
