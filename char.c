@@ -7,6 +7,10 @@
 #include <linux/cdev.h>
 
 #define SIZE 1024
+#define LED1     1
+#define LED2     2
+#define LED3     3
+#define LED4     4
 
 struct resource * led_res;
 void __iomem *GPIOCOUT_VA;  //0x00
@@ -38,6 +42,32 @@ int my_release(struct inode *inode, struct file *filp)
 	return 0;  //success return 
 }
 
+long my_ioctl(struct file *filo, unsigned int cmd, unsigned long arg)
+{
+	printk("cmd is %d , arg is %d \n",cmd,arg);
+	switch(arg)
+	{
+		case LED1:
+			*(unsigned int *)GPIOEOUT_VA   = (*(unsigned int *)GPIOEOUT_VA  &  ~(0x1 << 13)  ) | cmd << 13 ;
+			break;
+			
+		case LED2:
+			*(unsigned int *)GPIOCOUT_VA   = (*(unsigned int *)GPIOCOUT_VA  &  ~(0x1 << 17)  ) | cmd << 17;
+			break;
+			
+		case LED3:
+			*(unsigned int *)GPIOCOUT_VA   = (*(unsigned int *)GPIOCOUT_VA  &  ~(0x1 << 8)  ) |  cmd << 8 ;
+			break;
+			
+		case LED4:
+			*(unsigned int *)GPIOCOUT_VA   = (*(unsigned int *)GPIOCOUT_VA  &  ~(0x1 << 7)  ) |  cmd << 7 ;
+			break;
+			
+		default:
+			printk("input error , try again please \n");
+	}
+}
+
 int led_get(char *GetValue)
 {
 	GetValue[0]  =   ! ((*(unsigned int *)GPIOEOUT_VA  >> 13) & 0x1) + 48;
@@ -53,10 +83,10 @@ int led_get(char *GetValue)
 int led_set(char *SetValue)
 {
 
-	char   led1Status =  SetValue[0] - 48;
-	char   led2Status =  SetValue[1] - 48;
-	char   led3Status =  SetValue[2] - 48;
-	char   led4Status =  SetValue[3] - 48;
+	char  led1Status =  SetValue[0] - 48;
+	char  led2Status =  SetValue[1] - 48;
+	char  led3Status =  SetValue[2] - 48;
+	char  led4Status =  SetValue[3] - 48;
   
 
 	*(unsigned int *)GPIOEOUT_VA   = (*(unsigned int *)GPIOEOUT_VA  &  ~(0x1 << 13)  ) | led1Status << 13 ;
@@ -121,6 +151,7 @@ struct file_operations bin_fops={
 	.release = my_release,
 	.read = my_read,
 	.write = my_write,
+	.unlocked_ioctl = my_ioctl,
 
 };
 
@@ -129,7 +160,7 @@ struct file_operations bin_fops={
 int char_test_init(void)
 {
 	int ret;
-	printk("char_test_init_bin 10/15 16:43\n");
+	printk("char_test_init_bin 10/17 10:26\n");
 	
 	//【1】申请GPIO内存资源
 	led_res = request_mem_region(0xC001C000, 0x3000, "gec6818_led_res");
@@ -202,13 +233,25 @@ int char_test_init(void)
 	//  2   初始化  struct cdev  必要信息
 	cdev_init(my_cdev,&bin_fops );
 	// 设置与获取正确的设备编号
-	my_devno = MKDEV(major,minor);
-	ret = register_chrdev_region(my_devno,               //主设备号及次设备号的  起始编号
-		                                1,               // 支持次设备的个数
-		                         "my_char");             //设备驱动名
-	if(ret){
-		printk("register_chrdev_region Failed!\n");
+	if(major == 0){
+		ret = register_chrdev_region(       0,               //主设备号及次设备号的  起始编号
+		                                    1,               // 支持次设备的个数
+		                             "my_char");             //设备驱动名
+		if(ret){
+			printk("register_chrdev_region Failed!\n");
+			return -EFAULT;	
+		}
+	}else{
+		my_devno = MKDEV(major,minor);
+		ret = register_chrdev_region(my_devno,               //主设备号及次设备号的  起始编号
+											1,               // 支持次设备的个数
+									 "my_char");             //设备驱动名
+		if(ret){
+			printk("register_chrdev_region Failed!\n");
+			return -EFAULT;	
+		}
 	}
+	
 
     // 3  往系统添加cdev 设备驱动
     ret = cdev_add(my_cdev,             //添加 的目标设备

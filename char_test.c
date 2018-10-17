@@ -4,9 +4,14 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 #define LED_ON   0
 #define LED_OFF  1
+#define LED1     1
+#define LED2     2
+#define LED3     3
+#define LED4     4
 
 #define BEEP_ON  3
 #define BEEP_OFF 4
@@ -39,6 +44,23 @@ int main(int argc,char *argv[])
 	ret = read(fd,rbuf,20);
 	printf("read count of ret from kernel is %d \n",ret);
 	printf("the data from kernel is [%s]  read the count is %d\n",rbuf,ret);
+	
+	while(1)
+	{
+		ioctl(fd,LED_ON,LED1);
+		sleep(1);
+		ioctl(fd,LED_OFF,LED1);
+		ioctl(fd,LED_ON,LED2);
+		sleep(1);
+		ioctl(fd,LED_OFF,LED2);
+		ioctl(fd,LED_ON,LED3);
+		sleep(1);
+		ioctl(fd,LED_OFF,LED3);
+		ioctl(fd,LED_ON,LED4);
+		sleep(1);
+		ioctl(fd,LED_OFF,LED4);
+	}
+	
 
 	close(fd);
 
